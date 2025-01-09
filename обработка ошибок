@@ -1,0 +1,131 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
+
+
+class CyclicDecoder:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Циклический декодер")
+
+        # Установка размера окна и центрирование
+        window_width = 800
+        window_height = 600
+        screen_width = root.winfo_screenwidth()
+        screen_height = root.winfo_screenheight()
+        center_x = int(screen_width / 2 - window_width / 2)
+        center_y = int(screen_height / 2 - window_height / 2)
+        self.root.geometry(f'{window_width}x{window_height}+{center_x}+{center_y}')
+
+        # Настройка стилей
+        style = ttk.Style()
+        style.configure('Large.TLabel', font=('Arial', 12))
+        style.configure('Large.TButton', font=('Arial', 12))
+        style.configure('Large.TEntry', font=('Arial', 12))
+
+        # Создание элементов интерфейса
+        ttk.Label(root, text="Введите кодовую комбинацию (в двоичном виде):", style='Large.TLabel').pack(pady=10)
+        self.message_entry = ttk.Entry(root, font=('Arial', 12), width=40)
+        self.message_entry.pack(pady=10)
+
+        ttk.Label(root, text="Введите неприводимый многочлен K(x) (в двоичном виде):", style='Large.TLabel').pack(pady=10)
+        self.polynomial_entry = ttk.Entry(root, font=('Arial', 12), width=40)
+        self.polynomial_entry.pack(pady=10)
+
+        ttk.Button(root, text="Декодировать", command=self.decode, style='Large.TButton').pack(pady=15)
+
+        # Создаем фрейм для текстового поля и скроллбара
+        text_frame = ttk.Frame(root)
+        text_frame.pack(pady=10, fill=tk.BOTH, expand=True)
+
+        # Создаем скроллбар
+        scrollbar = ttk.Scrollbar(text_frame)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+        # Текстовое поле для вывода результатов
+        self.result_text = tk.Text(text_frame, font=('Arial', 12), width=60, height=15,
+                                  yscrollcommand=scrollbar.set)
+        self.result_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # Привязываем скроллбар к текстовому полю
+        scrollbar.config(command=self.result_text.yview)
+
+    def cyclic_shift(self, binary):
+        """Выполняет циклический сдвиг вправо на одну позицию"""
+        return binary[-1] + binary[:-1]
+
+    def binary_division(self, dividend, divisor):
+        """Выполняет деление в поле GF(2) и возвращает остаток"""
+        dividend = list(dividend)
+        divisor = list(divisor)
+        dividend_len = len(dividend)
+        divisor_len = len(divisor)
+        
+        # Копия для сохранения исходного делимого
+        temp_dividend = dividend.copy()
+        
+        for i in range(dividend_len - divisor_len + 1):
+            if temp_dividend[i] == '1':
+                for j in range(divisor_len):
+                    temp_dividend[i + j] = str(int(temp_dividend[i + j]) ^ int(divisor[j]))
+        
+        remainder = ''.join(temp_dividend[-(divisor_len - 1):])
+        if not remainder:
+            remainder = '0'
+        return remainder
+
+    def decode(self):
+        try:
+            received = self.message_entry.get()
+            polynomial = self.polynomial_entry.get()
+
+            if not all(bit in '01' for bit in received) or not all(bit in '01' for bit in polynomial):
+                messagebox.showerror("Ошибка", "Введенные данные должны содержать только 0 и 1")
+                return
+
+            self.result_text.delete(1.0, tk.END)
+            self.result_text.insert(tk.END, "Начало процедуры декодирования:\n\n")
+
+            current_combination = received
+            shift_count = 0
+
+            # Процедура деления с циклическими сдвигами
+            while shift_count < len(received):
+                remainder = self.binary_division(current_combination, polynomial)
+                self.result_text.insert(tk.END, 
+                    f"Шаг {shift_count}:\n"
+                    f"Комбинация: {current_combination}\n"
+                    f"Остаток от деления: {remainder}\n"
+                    f"{'=' * 40}\n"
+                )
+
+                # Проверяем, равен ли остаток двоичной единице
+                if int(remainder, 2) == 1:  # Преобразуем двоичную строку в число
+                    # Нашли остаток 1, исправляем ошибку
+                    error_pos = len(received) - shift_count - 1
+                    corrected = list(received)
+                    corrected[error_pos] = '1' if corrected[error_pos] == '0' else '0'
+                    corrected = ''.join(corrected)
+                    
+                    self.result_text.insert(tk.END, 
+                        f"\nРезультаты декодирования:\n"
+                        f"В полученном коде '{received}' допущена ошибка на позиции {error_pos}.\n"
+                        f"Исправленный код - '{corrected}'\n"
+                    )
+                    return
+
+                current_combination = self.cyclic_shift(current_combination)
+                shift_count += 1
+
+            # Если цикл завершился без нахождения остатка 1
+            self.result_text.insert(tk.END, 
+                "\nНе удалось локализовать ошибку после полного цикла сдвигов\n"
+            )
+
+        except Exception as e:
+            messagebox.showerror("Ошибка", str(e))
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = CyclicDecoder(root)
+    root.mainloop()
