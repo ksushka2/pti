@@ -7,6 +7,9 @@ class HemmingCode:
         self.root = root
         self.root.title("Построение кода Хемминга")
         
+        # Устанавливаем ширину кнопок как атрибут класса
+        self.button_width = 15
+
         # Разворачиваем окно на весь экран
         self.root.state('zoomed')
 
@@ -46,27 +49,34 @@ class HemmingCode:
 
         # Ввод количества букв (в левой панели)
         input_frame = ttk.Frame(left_panel)
-        input_frame.pack(fill=tk.X, pady=10)
-        
-        ttk.Label(input_frame, text="Количество букв:", style='Large.TLabel').pack(pady=5)
+        input_frame.pack(fill=tk.X, pady=10, anchor='w')  # Добавляем anchor='w' для выравнивания по левому краю
+
+        ttk.Label(input_frame, text="Количество символов:", style='Large.TLabel').pack(pady=5, anchor='w')
         self.letters_count_entry = ttk.Entry(input_frame, font=('Arial', 12), width=8)
-        self.letters_count_entry.pack(pady=5)
-        
-        ttk.Button(input_frame, text="Создать таблицу", 
-                  command=self.create_probability_table, 
-                  style='Large.TButton').pack(pady=5)
+        self.letters_count_entry.pack(pady=5, anchor='w')
+
+        # Создаем кнопки одинаковой ширины
+        ttk.Button(input_frame, text="Создать таблицу",
+                  command=self.create_probability_table,
+                  style='Large.TButton',
+                  width=self.button_width).pack(pady=5, anchor='w')
+                  
+        ttk.Button(input_frame, text="Очистить холст",
+                  command=self.clear_all,
+                  style='Large.TButton',
+                  width=self.button_width).pack(pady=5, anchor='w')
 
         # Фрейм для таблицы вероятностей (в левой панели)
         self.prob_frame = ttk.Frame(left_panel)
-        self.prob_frame.pack(fill=tk.BOTH, expand=True)
+        self.prob_frame.pack(fill=tk.BOTH, expand=True, anchor='w')
 
         # Текстовое поле с прокруткой для вывода результатов (в центральной панели)
-        ttk.Label(center_panel, text="Результаты расчета:", style='Large.TLabel').pack(pady=5)
-        
+        ttk.Label(center_panel, text="Результаты расчета:", style='Large.TLabel').pack(pady=5, anchor='w')
+
         # Создаем фрейм для текста с прокруткой
         calc_frame = ttk.Frame(center_panel)
         calc_frame.pack(fill=tk.BOTH, expand=True, pady=5)
-        
+
         # Добавляем вертикальный и горизонтальный скроллбары
         calc_v_scroll = ttk.Scrollbar(calc_frame)
         calc_h_scroll = ttk.Scrollbar(calc_frame, orient='horizontal')
@@ -74,179 +84,250 @@ class HemmingCode:
                                   wrap=tk.NONE,  # Отключаем перенос строк
                                   xscrollcommand=calc_h_scroll.set,
                                   yscrollcommand=calc_v_scroll.set)
-        
+
         # Размещаем элементы
         calc_v_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         calc_h_scroll.pack(side=tk.BOTTOM, fill=tk.X)
         self.result_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
+
         # Привязываем скроллбары
         calc_v_scroll.config(command=self.result_text.yview)
         calc_h_scroll.config(command=self.result_text.xview)
 
         # Добавляем фрейм для канваса и скроллбаров (в правой панели)
-        ttk.Label(self.tree_panel, text="Дерево Хемминга", style='Large.TLabel').pack(pady=5)
-        
+        ttk.Label(self.tree_panel, text="Дерево Хемминга", style='Large.TLabel').pack(pady=5, anchor='w')
+
         self.tree_frame = ttk.Frame(self.tree_panel)
         self.tree_frame.pack(fill=tk.BOTH, expand=True)
 
         # Создаем канвас со скроллбарами
         self.tree_canvas = tk.Canvas(self.tree_frame, bg='white')
-        v_scrollbar = ttk.Scrollbar(self.tree_frame, orient="vertical", 
+        v_scrollbar = ttk.Scrollbar(self.tree_frame, orient="vertical",
                                    command=self.tree_canvas.yview)
-        h_scrollbar = ttk.Scrollbar(self.tree_frame, orient="horizontal", 
+        h_scrollbar = ttk.Scrollbar(self.tree_frame, orient="horizontal",
                                    command=self.tree_canvas.xview)
-        
+
         # Конфигурируем скроллбары
-        self.tree_canvas.configure(yscrollcommand=v_scrollbar.set, 
+        self.tree_canvas.configure(yscrollcommand=v_scrollbar.set,
                                  xscrollcommand=h_scrollbar.set)
-        
+
         # Размещаем элементы
         h_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
         v_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.tree_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
+    def clear_all(self):
+        """Очищает все холсты и удаляет старую таблицу"""
+        # Очищаем предыдущую таблицу
+        for widget in self.prob_frame.winfo_children():
+            widget.destroy()
+            
+        # Очищаем холст дерева
+        self.tree_canvas.delete("all")
+        
+        # Очищаем текстовое поле результатов
+        self.result_text.delete(1.0, tk.END)
+
     def create_probability_table(self):
         try:
-            # Очищаем предыдущую таблицу
-            for widget in self.prob_frame.winfo_children():
-                widget.destroy()
-
             n = int(self.letters_count_entry.get())
             if n < 2:
-                messagebox.showerror("Ошибка", "Количество букв должно быть не менее 2")
+                messagebox.showerror("Ошибка", "Количество символов должно быть не менее 2")
                 return
 
-            # Создаем заголовки таблицы
-            ttk.Label(self.prob_frame, text="Буква", style='Large.TLabel').grid(row=0, column=0, padx=5, pady=5)
-            ttk.Label(self.prob_frame, text="Вероятность", style='Large.TLabel').grid(row=0, column=1, padx=5, pady=5)
+            # Создаем заголовки таблицы с выравниванием по левому краю
+            ttk.Label(self.prob_frame, text="Символ", style='Large.TLabel').grid(row=0, column=0, padx=5, pady=5, sticky='w')
+            ttk.Label(self.prob_frame, text="Вероятность", style='Large.TLabel').grid(row=0, column=1, padx=5, pady=5, sticky='w')
 
             # Создаем поля ввода для вероятностей
             self.prob_entries = []
             for i in range(n):
-                ttk.Label(self.prob_frame, text=f"z{i+1}", style='Large.TLabel').grid(row=i+1, column=0, padx=5, pady=5)
+                ttk.Label(self.prob_frame, text=f"z{i+1}", style='Large.TLabel').grid(row=i+1, column=0, padx=5, pady=5, sticky='w')
                 entry = ttk.Entry(self.prob_frame, font=('Arial', 12), width=10)
-                entry.grid(row=i+1, column=1, padx=5, pady=5)
+                entry.grid(row=i+1, column=1, padx=5, pady=5, sticky='w')
+                
+                # Добавляем обработку Enter
+                if i < n-1:  # Если это не последнее поле
+                    entry.bind('<Return>', lambda e, next_idx=i+1: self.focus_next_entry(next_idx))
+                else:  # Для последнего поля
+                    entry.bind('<Return>', lambda e: self.calculate_hemming())
+                    
                 self.prob_entries.append(entry)
 
-            # Кнопка для расчета
-            ttk.Button(self.prob_frame, text="Рассчитать", command=self.calculate_hemming,
-                      style='Large.TButton').grid(row=n+1, column=0, columnspan=2, pady=10)
+            # Кнопка для расчета с той же шириной
+            ttk.Button(self.prob_frame, text="Рассчитать",
+                      command=self.calculate_hemming,
+                      style='Large.TButton',
+                      width=self.button_width).grid(row=n+1, column=0, columnspan=2, pady=10, sticky='w')
 
         except ValueError:
-            messagebox.showerror("Ошибка", "Введите корректное число букв")
+            messagebox.showerror("Ошибка", "Введите корректное число символов")
+
+    def focus_next_entry(self, next_idx):
+        """Переводит фокус на следующее поле ввода"""
+        self.prob_entries[next_idx].focus()
 
     def draw_tree(self, probabilities, nodes):
-        """Рисует дерево Хемминга вертикально с кодированием букв"""
-        self.tree_canvas.delete("all")  # Очищаем канвас
-        
+        """Рисует дерево Хемминга вертикально"""
+        self.tree_canvas.delete("all")
+
         # Размеры для дерева
-        node_radius = 25
-        horizontal_spacing = 120  # Расстояние между узлами по горизонтали
-        vertical_spacing = 80    # Расстояние между уровнями по вертикали
-        
+        node_radius = 25  # Размер узла
+        horizontal_spacing = 200  # Увеличиваем горизонтальное расстояние со 150 до 200
+        vertical_spacing = 100    # Вертикальное расстояние оставляем прежним
+
         # Вычисляем необходимые размеры канваса
-        total_width = (len(probabilities) * horizontal_spacing) + 100
-        total_height = (len(nodes) * vertical_spacing) + 100
-        
-        # Устанавливаем размер области прокрутки
+        total_width = max(2500, (len(probabilities)) * horizontal_spacing * 2)  # Увеличиваем множитель с 1.5 до 2
+        total_height = max(1200, 8 * vertical_spacing)  # Высота остается прежней
+
         self.tree_canvas.configure(scrollregion=(0, 0, total_width, total_height))
-        
-        # Словарь для хранения кодов букв
-        codes = {}
-        
-        def draw_node(x, y, value, is_leaf=False, label=""):
-            # Рисуем узел
-            self.tree_canvas.create_oval(x-node_radius, y-node_radius, 
-                                       x+node_radius, y+node_radius, 
+
+        # Начальные координаты корня
+        root_x = total_width / 2
+        root_y = vertical_spacing * 1.5
+
+        def draw_node(x, y, value):
+            """Рисует узел дерева"""
+            self.tree_canvas.create_oval(x-node_radius, y-node_radius,
+                                       x+node_radius, y+node_radius,
                                        fill='white')
-            # Добавляем значение вероятности
-            self.tree_canvas.create_text(x, y-10, 
+            self.tree_canvas.create_text(x, y,
                                        text=f"{value:.4f}")
-            if is_leaf:
-                # Добавляем метку буквы для листьев
-                self.tree_canvas.create_text(x, y+10, 
-                                           text=label)
 
         def draw_edge(x1, y1, x2, y2, label):
-            # Рисуем линию
+            """Рисует ребро между узлами"""
             self.tree_canvas.create_line(x1, y1, x2, y2)
-            # Добавляем метку ребра (0 или 1)
             mid_x = (x1 + x2) / 2
-            mid_y = (y1 + y2) / 2 - 10
-            self.tree_canvas.create_text(mid_x + 15, mid_y, 
-                                       text=str(label))
+            mid_y = (y1 + y2) / 2
+            # Смещаем метку немного в сторону от линии
+            offset = 10
+            if x2 < x1:  # левое ребро
+                mid_x -= offset
+            else:  # правое ребро
+                mid_x += offset
+            self.tree_canvas.create_text(mid_x, mid_y, text=str(label))
 
-        def build_tree(node_list, depth, x, y, code=""):
-            if len(node_list) == 1:
-                # Это лист
-                label = f"z{len(codes) + 1}"
-                codes[label] = code
-                draw_node(x, y, node_list[0], True, label)
+        def build_tree_structure(probs):
+            """Строит структуру дерева Хемминга"""
+            if len(probs) == 1:
+                return {'value': probs[0], 'left': None, 'right': None}
+
+            total = sum(probs)
+            best_diff = float('inf')
+            best_split = 1
+            best_left_sum = 0
+
+            # Находим лучшее разделение на две группы
+            for i in range(1, len(probs)):
+                left_sum = sum(probs[:i])
+                right_sum = sum(probs[i:])
+                diff = abs(left_sum - right_sum)
+
+                # Если нашли лучшее разделение или равное текущему лучшему,
+                # но левая сумма больше предыдущей лучшей левой суммы
+                if diff < best_diff or (diff == best_diff and left_sum > best_left_sum):
+                    best_diff = diff
+                    best_split = i
+                    best_left_sum = left_sum
+
+            left_probs = probs[:best_split]
+            right_probs = probs[best_split:]
+
+            # Определяем, какая группа будет слева (с меткой 1)
+            left_sum = sum(left_probs)
+            right_sum = sum(right_probs)
+
+            # Если правая сумма больше левой, меняем их местами
+            if right_sum > left_sum:
+                left_probs, right_probs = right_probs, left_probs
+
+            return {
+                'value': total,
+                'left': build_tree_structure(left_probs),
+                'right': build_tree_structure(right_probs)
+            }
+
+        def draw_tree_recursive(node, x, y, width):
+            """Рекурсивно отрисовывает дерево"""
+            if node is None:
                 return
 
-            # Берем две последние вероятности
-            min_prob = node_list[-1]  # Минимальная вероятность
-            max_prob = node_list[-2]  # Максимальная из двух последних
+            draw_node(x, y, node['value'])
 
-            # Рисуем текущий узел с суммой вероятностей
-            current_sum = sum(node_list)
-            draw_node(x, y, current_sum)
+            if node['left'] is not None:
+                next_y = y + vertical_spacing
+                left_x = x - width/2
+                right_x = x + width/2
 
-            # Вычисляем координаты для дочерних узлов
-            next_y = y + vertical_spacing
-            
-            if len(node_list) == 2:
-                left_x = x - horizontal_spacing
-                right_x = x + horizontal_spacing
-            else:
-                # Для более чем двух узлов увеличиваем расстояние
-                left_x = x - horizontal_spacing * (len(node_list) / 4)
-                right_x = x + horizontal_spacing * (len(node_list) / 4)
+                # Рисуем левое поддерево
+                draw_edge(x, y + node_radius, left_x, next_y - node_radius, 1)
+                draw_tree_recursive(node['left'], left_x, next_y, width/2)
 
-            # Рисуем ребра с метками
-            draw_edge(x, y + node_radius, left_x, next_y - node_radius, 0)
-            draw_edge(x, y + node_radius, right_x, next_y - node_radius, 1)
+                # Рисуем правое поддерево
+                draw_edge(x, y + node_radius, right_x, next_y - node_radius, 0)
+                draw_tree_recursive(node['right'], right_x, next_y, width/2)
 
-            # Рекурсивно строим поддеревья
-            if len(node_list) == 2:
-                build_tree([min_prob], depth + 1, left_x, next_y, code + "0")
-                build_tree([max_prob], depth + 1, right_x, next_y, code + "1")
-            else:
-                build_tree([min_prob], depth + 1, left_x, next_y, code + "0")
-                build_tree(node_list[:-1], depth + 1, right_x, next_y, code + "1")
+        # Строим структуру дерева
+        tree = build_tree_structure(sorted(probabilities, reverse=True))
 
-        # Начинаем построение дерева
-        root_x = total_width / 2
-        root_y = vertical_spacing
-        build_tree(probabilities, 0, root_x, root_y)
+        # Отрисовываем дерево
+        draw_tree_recursive(tree, root_x, root_y, total_width/2)
 
-        # Выводим коды букв в текстовое поле
-        self.result_text.insert(tk.END, "\nПолученные коды букв:\n")
-        for label, code in sorted(codes.items()):
-            self.result_text.insert(tk.END, f"{label}: {code}\n")
+        # Выводим коды букв
+        self.result_text.insert(tk.END, "\nПолученные коды символов:\n")
+
+        def get_codes(node, code="", codes=None):
+            if codes is None:
+                codes = []
+            if node['left'] is None and node['right'] is None:
+                codes.append((node['value'], code))
+                return codes
+            if node['left']:
+                get_codes(node['left'], code + "1", codes)
+            if node['right']:
+                get_codes(node['right'], code + "0", codes)
+            return codes
+
+        codes = get_codes(tree)
+        codes.sort(reverse=True)
+
+        for i, (prob, code) in enumerate(codes, 1):
+            self.result_text.insert(tk.END, f"z{i} ({prob:.2f}): {code}\n")
 
     def calculate_hemming(self):
         try:
             # Получаем вероятности
             probabilities = []
             for entry in self.prob_entries:
-                prob = float(entry.get())
+                value = entry.get()
+                if ',' in value:
+                    messagebox.showerror("Ошибка", "В качестве разделителя используйте символ '.' вместо ','")
+                    return
+                try:
+                    prob = float(value)
+                except ValueError:
+                    messagebox.showerror("Ошибка", f"Значение '{value}' не является числом. В качестве разделителя используйте символ '.'")
+                    return
+                
                 if prob <= 0 or prob > 1:
-                    raise ValueError("Вероятность должна быть в диапазоне (0, 1]")
+                    messagebox.showerror("Ошибка", "Вероятность должна быть в диапазоне (0, 1]")
+                    return
                 probabilities.append(prob)
 
             # Проверяем сумму вероятностей
-            if abs(sum(probabilities) - 1) > 0.0001:
-                messagebox.showerror("Ошибка", "Сумма вероятностей должна быть равна 1")
+            total_prob = sum(probabilities)
+            if abs(total_prob - 1) > 0.0001:
+                messagebox.showerror("Ошибка", 
+                    f"Введенные вероятности не корректны - проверьте данные.\n"
+                    f"Сумма вероятностей должна быть равна 1, текущая сумма: {total_prob:.4f}")
                 return
 
             # Сортируем вероятности по убыванию
             probabilities.sort(reverse=True)
-            
+
             # Очищаем текстовое поле
             self.result_text.delete(1.0, tk.END)
-            
+
             # Выводим исходные данные
             self.result_text.insert(tk.END, "Шаг 1: Исходные вероятности (по убыванию):\n")
             for i, prob in enumerate(probabilities):
@@ -257,44 +338,37 @@ class HemmingCode:
             tree_nodes = [probabilities.copy()]
             current_probs = probabilities.copy()
             level = 2  # Начинаем с шага 2
-            
+
             while len(current_probs) > 1:
                 # Описание текущего шага
                 self.result_text.insert(tk.END, f"\nШаг {level}:\n")
                 self.result_text.insert(tk.END, f"1. Текущие вероятности: {', '.join([f'{p:.4f}' for p in current_probs])}\n")
-                
+
                 # Объединяем две последние вероятности
                 last_two = current_probs[-2:]
                 combined_prob = sum(last_two)
-                
-                self.result_text.insert(tk.END, 
+
+                self.result_text.insert(tk.END,
                     f"2. Объединяем две наименьшие вероятности: {last_two[0]:.4f} + {last_two[1]:.4f}\n"
                     f"3. Получаем вспомогательную вероятность: {combined_prob:.4f}\n"
                 )
-                
+
                 # Обновляем список вероятностей
                 current_probs = current_probs[:-2] + [combined_prob]
                 current_probs.sort(reverse=True)
-                
-                self.result_text.insert(tk.END, 
+
+                self.result_text.insert(tk.END,
                     f"4. Сортируем вероятности по убыванию\n"
                     f"5. Новый список вероятностей: {', '.join([f'{p:.4f}' for p in current_probs])}\n"
                     f"{'=' * 50}\n"
                 )
-                
+
                 tree_nodes.append(current_probs.copy())
                 level += 1
-                
+
             # Рисуем дерево
             self.draw_tree(probabilities, tree_nodes)
-            
-            # Добавляем итоговый результат
-            self.result_text.insert(tk.END, 
-                f"\nИтоговый результат:\n"
-                f"Построено дерево Хемминга с {level-2} уровнями\n"
-                f"Финальная вероятность: {current_probs[0]:.4f}\n"
-            )
-            
+
         except ValueError as e:
             messagebox.showerror("Ошибка", str(e))
         except Exception as e:
