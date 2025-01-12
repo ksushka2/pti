@@ -173,18 +173,18 @@ class HemmingCode:
         self.prob_entries[next_idx].focus()
 
 
-    def draw_tree(self, probabilities, nodes):
+    def draw_tree(self, original_probs, all_states, merged_pairs):
         """Рисует дерево Хемминга вертикально"""
         self.tree_canvas.delete("all")
 
         # Размеры для дерева
         node_radius = 25  # Размер узла
-        horizontal_spacing = 200  # Увеличиваем горизонтальное расстояние со 150 до 200
-        vertical_spacing = 100  # Вертикальное расстояние оставляем прежним
+        horizontal_spacing = 200  # Горизонтальное расстояние
+        vertical_spacing = 100  # Вертикальное расстояние
 
         # Вычисляем необходимые размеры канваса
-        total_width = max(2500, (len(probabilities)) * horizontal_spacing * 2)  # Увеличиваем множитель с 1.5 до 2
-        total_height = max(1200, 8 * vertical_spacing)  # Высота остается прежней
+        total_width = max(2500, len(original_probs) * horizontal_spacing * 2)
+        total_height = max(1200, 8 * vertical_spacing)
 
         self.tree_canvas.configure(scrollregion=(0, 0, total_width, total_height))
 
@@ -197,70 +197,56 @@ class HemmingCode:
             self.tree_canvas.create_oval(x - node_radius, y - node_radius,
                                          x + node_radius, y + node_radius,
                                          fill='white')
-            # Добавляем номер шага над узлом, если он указан
             if step is not None:
                 self.tree_canvas.create_text(x, y - node_radius - 10,
                                              text=f"Шаг {step}",
                                              font=('Arial', 10, 'bold'))
-            self.tree_canvas.create_text(x, y,
-                                         text=f"{value:.4f}")
+            self.tree_canvas.create_text(x, y, text=f"{value:.4f}")
 
         def draw_edge(x1, y1, x2, y2, label, step=None):
             """Рисует ребро между узлами"""
             self.tree_canvas.create_line(x1, y1, x2, y2)
             mid_x = (x1 + x2) / 2
             mid_y = (y1 + y2) / 2
-            # Смещаем метку немного в сторону от линии
             offset = 10
             if x2 < x1:  # левое ребро
                 mid_x -= offset
             else:  # правое ребро
                 mid_x += offset
-            # Добавляем номер шага рядом с меткой, если он указан
             if step is not None:
                 self.tree_canvas.create_text(mid_x, mid_y - 15,
                                              text=f"Шаг {step}",
                                              font=('Arial', 8))
             self.tree_canvas.create_text(mid_x, mid_y + 5, text=str(label))
 
-        def build_tree_structure(probs, current_step=1):
-            """Строит структуру дерева Хемминга"""
-            if len(probs) == 1:
-                return {'value': probs[0], 'left': None, 'right': None, 'step': current_step}
-
-            total = sum(probs)
-            best_diff = float('inf')
-            best_split = 1
-            best_left_sum = 0
-
-            # Находим лучшее разделение на две группы
-            for i in range(1, len(probs)):
-                left_sum = sum(probs[:i])
-                right_sum = sum(probs[i:])
-                diff = abs(left_sum - right_sum)
-
-                if diff < best_diff or (diff == best_diff and left_sum > best_left_sum):
-                    best_diff = diff
-                    best_split = i
-                    best_left_sum = left_sum
-
-            left_probs = probs[:best_split]
-            right_probs = probs[best_split:]
-
-            # Определяем, какая группа будет слева (с меткой 1)
-            left_sum = sum(left_probs)
-            right_sum = sum(right_probs)
-
-            # Если правая сумма больше левой, меняем их местами
-            if right_sum > left_sum:
-                left_probs, right_probs = right_probs, left_probs
-
-            return {
-                'value': total,
-                'step': current_step,
-                'left': build_tree_structure(left_probs, current_step + 1),
-                'right': build_tree_structure(right_probs, current_step + 1)
-            }
+        def build_tree_structure():
+            """Строит структуру дерева на основе сохраненных состояний и пар объединения"""
+            # Создаем словарь для хранения узлов
+            nodes = {}
+            total_steps = len(merged_pairs)
+            
+            # Создаем корневой узел (последнее состояние)
+            root_value = all_states[-1][0]
+            nodes[root_value] = {'value': root_value, 'left': None, 'right': None, 'step': total_steps}
+            
+            # Проходим по парам объединения в обратном порядке
+            for step, (min1, min2, merged_sum) in enumerate(reversed(merged_pairs), 1):
+                current_step = total_steps - step + 1
+                node = nodes[merged_sum]
+                
+                # Создаем дочерние узлы
+                nodes[min1] = {'value': min1, 'left': None, 'right': None, 'step': current_step}
+                nodes[min2] = {'value': min2, 'left': None, 'right': None, 'step': current_step}
+                
+                # Больший узел идет влево (метка 1), меньший вправо (метка 0)
+                if min1 > min2:
+                    node['left'] = nodes[min1]
+                    node['right'] = nodes[min2]
+                else:
+                    node['left'] = nodes[min2]
+                    node['right'] = nodes[min1]
+            
+            return nodes[root_value]
 
         def draw_tree_recursive(node, x, y, width, parent_step=None):
             """Рекурсивно отрисовывает дерево"""
@@ -270,22 +256,21 @@ class HemmingCode:
             current_step = node.get('step', None)
             draw_node(x, y, node['value'], current_step)
 
-
             if node['left'] is not None:
                 next_y = y + vertical_spacing
                 left_x = x - width / 2
                 right_x = x + width / 2
 
-                # Рисуем левое поддерево
+                # Рисуем левое поддерево (метка 1)
                 draw_edge(x, y + node_radius, left_x, next_y - node_radius, 1, current_step)
                 draw_tree_recursive(node['left'], left_x, next_y, width / 2, current_step)
 
-                # Рисуем правое поддерево
+                # Рисуем правое поддерево (метка 0)
                 draw_edge(x, y + node_radius, right_x, next_y - node_radius, 0, current_step)
                 draw_tree_recursive(node['right'], right_x, next_y, width / 2, current_step)
 
         # Строим структуру дерева
-        tree = build_tree_structure(sorted(probabilities, reverse=True))
+        tree = build_tree_structure()
 
         # Отрисовываем дерево
         draw_tree_recursive(tree, root_x, root_y, total_width / 2)
@@ -306,9 +291,17 @@ class HemmingCode:
             return codes
 
         codes = get_codes(tree)
-        codes.sort(reverse=True)
-
-        for i, (prob, code) in enumerate(codes, 1):
+        
+        # Сопоставляем коды с исходными вероятностями в порядке их ввода
+        prob_codes = []
+        for i, prob in enumerate(original_probs):
+            for value, code in codes:
+                if abs(value - prob) < 0.0001:
+                    prob_codes.append((i + 1, prob, code))
+                    break
+        
+        # Выводим коды в порядке исходных символов
+        for i, prob, code in sorted(prob_codes):
             self.result_text.insert(tk.END, f"z{i} ({prob:.2f}): {code}\n")
 
     def calculate_hemming(self):
@@ -340,11 +333,14 @@ class HemmingCode:
                                      f"Сумма вероятностей должна быть равна 1, текущая сумма: {total_prob:.4f}")
                 return
 
-            # Сортируем вероятности по убыванию
-            probabilities.sort(reverse=True)
-
             # Очищаем текстовое поле
             self.result_text.delete(1.0, tk.END)
+
+            # Сохраняем исходные вероятности до сортировки для вывода кодов
+            original_probs = probabilities.copy()
+
+            # Сортируем вероятности по убыванию
+            probabilities.sort(reverse=True)
 
             # Выводим исходные данные
             self.result_text.insert(tk.END, "Шаг 1: Исходные вероятности (по убыванию):\n")
@@ -352,42 +348,50 @@ class HemmingCode:
                 self.result_text.insert(tk.END, f"z{i + 1}: {prob:.4f}\n")
             self.result_text.insert(tk.END, "\nПостроение дерева Хемминга:\n")
 
-            # Сохраняем все уровни дерева для визуализации
-            tree_nodes = [probabilities.copy()]
+            # Список для хранения всех состояний вероятностей
+            all_states = []
+            # Список для хранения пар объединяемых вероятностей
+            merged_pairs = []
+            
             current_probs = probabilities.copy()
-            level = 2  # Начинаем с шага 2
+            step = 2
 
             while len(current_probs) > 1:
-                # Описание текущего шага
-                self.result_text.insert(tk.END, f"\nШаг {level}:\n")
+                # Сохраняем текущее состояние
+                all_states.append(current_probs.copy())
+                
+                self.result_text.insert(tk.END, f"\nШаг {step}:\n")
+                self.result_text.insert(tk.END, 
+                    f"1. Текущие вероятности: {', '.join([f'{p:.4f}' for p in current_probs])}\n")
+
+                # Берем две наименьшие вероятности
+                min1, min2 = current_probs[-2:]
+                merged_sum = min1 + min2
+                
+                # Сохраняем пару для построения дерева
+                merged_pairs.append((min1, min2, merged_sum))
+
                 self.result_text.insert(tk.END,
-                                        f"1. Текущие вероятности: {', '.join([f'{p:.4f}' for p in current_probs])}\n")
-
-                # Объединяем две последние вероятности
-                last_two = current_probs[-2:]
-                combined_prob = sum(last_two)
-
-
-                self.result_text.insert(tk.END,
-                                        f"2. Объединяем две наименьшие вероятности: {last_two[0]:.4f} + {last_two[1]:.4f}\n"
-                                        f"3. Получаем вспомогательную вероятность: {combined_prob:.4f}\n"
-                                        )
+                    f"2. Объединяем две наименьшие вероятности: {min1:.4f} + {min2:.4f}\n"
+                    f"3. Получаем вспомогательную вероятность: {merged_sum:.4f}\n")
 
                 # Обновляем список вероятностей
-                current_probs = current_probs[:-2] + [combined_prob]
-                current_probs.sort(reverse=True)
-
+                new_probs = current_probs[:-2] + [merged_sum]
+                new_probs.sort(reverse=True)
+                
                 self.result_text.insert(tk.END,
-                                        f"4. Сортируем вероятности по убыванию\n"
-                                        f"5. Новый список вероятностей: {', '.join([f'{p:.4f}' for p in current_probs])}\n"
-                                        f"{'=' * 50}\n"
-                                        )
+                    f"4. Сортируем вероятности по убыванию\n"
+                    f"5. Новый список вероятностей: {', '.join([f'{p:.4f}' for p in new_probs])}\n"
+                    f"{'=' * 50}\n")
 
-                tree_nodes.append(current_probs.copy())
-                level += 1
+                current_probs = new_probs
+                step += 1
 
-            # Рисуем дерево
-            self.draw_tree(probabilities, tree_nodes)
+            # Добавляем последнее состояние (1.0)
+            all_states.append(current_probs.copy())
+
+            # Строим дерево на основе сохраненных состояний и пар объединения
+            self.draw_tree(original_probs, all_states, merged_pairs)
 
         except ValueError as e:
             messagebox.showerror("Ошибка", str(e))
