@@ -1,0 +1,395 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
+import math
+
+class TreeWindow:
+    def __init__(self, parent):
+        self.window = tk.Toplevel(parent)
+        self.window.title("Дерево Хаффмана")
+        self.window.state('zoomed')  # Разворачиваем окно на весь экран
+
+        # Создаем фрейм для канваса и скроллбаров
+        self.tree_frame = ttk.Frame(self.window)
+        self.tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        # Создаем канвас со скроллбарами
+        self.tree_canvas = tk.Canvas(self.tree_frame, bg='white')
+        v_scrollbar = ttk.Scrollbar(self.tree_frame, orient="vertical",
+                                  command=self.tree_canvas.yview)
+        h_scrollbar = ttk.Scrollbar(self.tree_frame, orient="horizontal",
+                                  command=self.tree_canvas.xview)
+
+        # Конфигурируем скроллбары
+        self.tree_canvas.configure(yscrollcommand=v_scrollbar.set,
+                                 xscrollcommand=h_scrollbar.set)
+
+        # Размещаем элементы
+        h_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
+        v_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.tree_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+class HuffmanCode:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Построение кода Хаффмана")
+        self.button_width = 15
+        self.root.state('zoomed')
+        self.tree_window = None
+
+        # Стили
+        style = ttk.Style()
+        style.configure('Large.TLabel', font=('Arial', 12))
+        style.configure('Large.TButton', font=('Arial', 12))
+        style.configure('Large.TEntry', font=('Arial', 12))
+
+        # Создаем основной контейнер
+        main_container = ttk.Frame(root)
+        main_container.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        # Левая панель для ввода данных
+        left_panel = ttk.Frame(main_container, width=300)
+        left_panel.pack(side=tk.LEFT, fill=tk.Y, padx=10)
+        left_panel.pack_propagate(False)
+
+        # Правая панель для результатов
+        right_panel = ttk.Frame(main_container)
+        right_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=2)
+
+        # Ввод количества букв
+        input_frame = ttk.Frame(left_panel)
+        input_frame.pack(fill=tk.X, pady=10, anchor='w')
+
+        ttk.Label(input_frame, text="Количество символов:", style='Large.TLabel').pack(pady=5, anchor='w')
+        self.letters_count_entry = ttk.Entry(input_frame, font=('Arial', 12), width=8)
+        self.letters_count_entry.pack(pady=5, anchor='w')
+
+        # Кнопки
+        ttk.Button(input_frame, text="Создать таблицу",
+                  command=self.create_probability_table,
+                  style='Large.TButton',
+                  width=self.button_width).pack(pady=5,anchor='w')
+
+        ttk.Button(input_frame, text="Очистить холст",
+                  command=self.clear_all,
+                  style='Large.TButton',
+                  width=self.button_width).pack(pady=5, anchor='w')
+
+        # Фрейм для таблицы вероятностей
+        self.prob_frame = ttk.Frame(left_panel)
+        self.prob_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Текстовое поле с прокруткой для вывода результатов
+        ttk.Label(right_panel, text="Результаты расчета:", style='Large.TLabel').pack(pady=5)
+
+        # Создаем фрейм для текста с прокруткой
+        calc_frame = ttk.Frame(right_panel)
+        calc_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+
+        # Добавляем скроллбары
+        calc_v_scroll = ttk.Scrollbar(calc_frame)
+        calc_h_scroll = ttk.Scrollbar(calc_frame, orient='horizontal')
+        self.result_text = tk.Text(calc_frame, font=('Arial', 12),
+                                 wrap=tk.NONE,
+                                 xscrollcommand=calc_h_scroll.set,
+                                 yscrollcommand=calc_v_scroll.set)
+
+        calc_v_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        calc_h_scroll.pack(side=tk.BOTTOM, fill=tk.X)
+        self.result_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        calc_v_scroll.config(command=self.result_text.yview)
+        calc_h_scroll.config(command=self.result_text.xview)
+
+    def show_tree_window(self):
+        if self.tree_window is None or not self.tree_window.window.winfo_exists():
+            self.tree_window = TreeWindow(self.root)
+        else:
+            self.tree_window.window.lift()
+
+    def clear_all(self):
+        # Очищаем предыдущую таблицу
+        for widget in self.prob_frame.winfo_children():
+            widget.destroy()
+
+        # Очищаем текстовое поле результатов
+        self.result_text.delete(1.0, tk.END)
+
+        # Очищаем дерево, если окно существует
+        if self.tree_window and self.tree_window.window.winfo_exists():
+            self.tree_window.tree_canvas.delete("all")
+
+    def create_probability_table(self):
+        try:
+            n = int(self.letters_count_entry.get())
+            if n < 2:
+                messagebox.showerror("Ошибка", "Количество символов должно быть не менее 2")
+                return
+
+            # Очищаем предыдущую таблицу
+            for widget in self.prob_frame.winfo_children():
+                widget.destroy()
+
+            # Создаем канвас с прокруткой если символов больше 16
+            if n > 16:
+                canvas = tk.Canvas(self.prob_frame)
+                scrollbar = ttk.Scrollbar(self.prob_frame, orient="vertical", command=canvas.yview)
+                scrollable_frame = ttk.Frame(canvas)
+
+                scrollable_frame.bind(
+                    "<Configure>",
+                    lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+                )
+
+                canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+                canvas.configure(yscrollcommand=scrollbar.set)
+
+                # Создаем заголовки таблицы
+                ttk.Label(scrollable_frame, text="Символ", style='Large.TLabel').grid(row=0, column=0, padx=5, pady=5)
+                ttk.Label(scrollable_frame, text="Вероятность", style='Large.TLabel').grid(row=0, column=1, padx=5,
+                                                                                           pady=5)
+
+                # Создаем поля ввода для вероятностей
+                self.prob_entries = []
+                for i in range(n):
+                    ttk.Label(scrollable_frame, text=f"z{i + 1}", style='Large.TLabel').grid(row=i + 1, column=0,
+                                                                                             padx=5, pady=5)
+                    entry = ttk.Entry(scrollable_frame, font=('Arial', 12), width=10)
+                    entry.grid(row=i + 1, column=1, padx=5, pady=5)
+
+                    if i < n - 1:
+                        entry.bind('<Return>', lambda e, next_idx=i + 1: self.focus_next_entry(next_idx))
+                    else:
+                        entry.bind('<Return>', lambda e: self.calculate_huffman())
+
+                    self.prob_entries.append(entry)
+
+                # Кнопка для расчета
+                ttk.Button(scrollable_frame, text="Рассчитать",
+                           command=self.calculate_huffman,
+                           style='Large.TButton',
+                           width=self.button_width).grid(row=n + 1, column=0, columnspan=2, pady=10, anchor = 'w')
+
+                canvas.pack(side="left", fill="both", expand=True)
+                scrollbar.pack(side="right", fill="y")
+
+            else:
+                # Стандартное отображение без скролла
+                ttk.Label(self.prob_frame, text="Символ", style='Large.TLabel').grid(row=0, column=0, padx=5, pady=5)
+                ttk.Label(self.prob_frame, text="Вероятность", style='Large.TLabel').grid(row=0, column=1, padx=5,
+                                                                                          pady=5)
+
+                self.prob_entries = []
+                for i in range(n):
+                    ttk.Label(self.prob_frame, text=f"z{i + 1}", style='Large.TLabel').grid(row=i + 1, column=0, padx=5,
+                                                                                            pady=5)
+                    entry = ttk.Entry(self.prob_frame, font=('Arial', 12), width=10)
+                    entry.grid(row=i + 1, column=1, padx=5, pady=5)
+
+                    if i < n - 1:
+                        entry.bind('<Return>', lambda e, next_idx=i + 1: self.focus_next_entry(next_idx))
+                    else:
+                        entry.bind('<Return>', lambda e: self.calculate_huffman())
+
+                    self.prob_entries.append(entry)
+
+                ttk.Button(self.prob_frame, text="Рассчитать",
+                           command=self.calculate_huffman,
+                           style='Large.TButton',
+                           width=self.button_width).grid(row=n + 1, column=0, columnspan=2, pady=10)
+
+        except ValueError:
+            messagebox.showerror("Ошибка", "Введите корректное число символов")
+
+    def focus_next_entry(self, next_idx):
+        self.prob_entries[next_idx].focus()
+
+    def draw_tree(self, original_probs, all_states, merged_pairs):
+        if self.tree_window is None or not self.tree_window.window.winfo_exists():
+            self.tree_window = TreeWindow(self.root)
+
+        canvas = self.tree_window.tree_canvas
+        canvas.delete("all")
+
+        # Размеры для дерева
+        node_radius = 25
+        horizontal_spacing = 200
+        vertical_spacing = 100
+
+        # Вычисляем необходимые размеры канваса
+        total_width = max(2500, len(original_probs) * horizontal_spacing * 2)
+        total_height = max(1200, 8 * vertical_spacing)
+
+        canvas.configure(scrollregion=(0, 0, total_width, total_height))
+
+        # Начальные координаты корня
+        root_x = total_width / 2
+        root_y = vertical_spacing * 1.5
+
+        def draw_node(x, y, value, step=None):
+            canvas.create_oval(x - node_radius, y - node_radius,
+                               x + node_radius, y + node_radius,
+                               fill='white')
+            if step is not None:
+                canvas.create_text(x, y - node_radius - 10,
+                                   font=('Arial', 10, 'bold'))
+            canvas.create_text(x, y, text=f"{value:.4f}")
+
+        def draw_edge(x1, y1, x2, y2, label):
+            canvas.create_line(x1, y1, x2, y2)
+            mid_x = (x1 + x2) / 2
+            mid_y = (y1 + y2) / 2
+            offset = 10
+            if x2 < x1:
+                mid_x -= offset
+            else:
+                mid_x += offset
+            canvas.create_text(mid_x, mid_y + 5, text=str(label))
+
+        def build_tree_structure():
+            nodes = {}
+            total_steps = len(merged_pairs)
+
+            root_value = all_states[-1][0]
+            nodes[root_value] = {'value': root_value, 'left': None, 'right': None, 'step': total_steps + 1}
+
+            for step, (min1, min2, merged_sum) in enumerate(reversed(merged_pairs), 1):
+                current_step = total_steps - step + 2
+                node = nodes[merged_sum]
+
+                nodes[min1] = {'value': min1, 'left': None, 'right': None, 'step': current_step}
+                nodes[min2] = {'value': min2, 'left': None, 'right': None, 'step': current_step}
+
+                if min1 > min2:
+                    node['left'] = nodes[min1]
+                    node['right'] = nodes[min2]
+                else:
+                    node['left'] = nodes[min2]
+                    node['right'] = nodes[min1]
+
+            return nodes[root_value]
+
+        def draw_tree_recursive(node, x, y, width):
+            if node is None:
+                return
+
+            current_step = node.get('step', None)
+            draw_node(x, y, node['value'], current_step)
+
+            if node['left'] is not None:
+                next_y = y + vertical_spacing
+                left_x = x - width / 2
+                right_x = x + width / 2
+
+                draw_edge(x, y + node_radius, left_x, next_y - node_radius, 1)
+                draw_tree_recursive(node['left'], left_x, next_y, width / 2)
+
+                draw_edge(x, y + node_radius, right_x, next_y - node_radius, 0)
+                draw_tree_recursive(node['right'], right_x, next_y, width / 2)
+
+        tree = build_tree_structure()
+        draw_tree_recursive(tree, root_x, root_y, total_width / 2)
+
+        def get_codes(node, code="", codes=None):
+            if codes is None:
+                codes = []
+            if node['left'] is None and node['right'] is None:
+                codes.append((node['value'], code))
+                return codes
+            if node['left']:
+                get_codes(node['left'], code + "1", codes)
+            if node['right']:
+                get_codes(node['right'], code + "0", codes)
+            return codes
+
+        # В методе draw_tree после получения кодов:
+        codes = get_codes(tree)
+
+        # Сопоставляем коды с исходными вероятностями в порядке их ввода
+        prob_codes = []
+        used_codes = set()  # Для отслеживания использованных кодов
+        for i, prob in enumerate(original_probs):
+            for value, code in codes:
+                if abs(value - prob) < 0.0001 and code not in used_codes:
+                    prob_codes.append((i + 1, prob, code))
+                    used_codes.add(code)
+                    break
+
+        # Выводим коды в порядке исходных символов
+        for i, prob, code in sorted(prob_codes):
+            self.result_text.insert(tk.END, f"z{i} ({prob:.2f}): {code}\n")
+
+    def calculate_huffman(self):
+        try:
+            probabilities = []
+            for entry in self.prob_entries:
+                value = entry.get()
+                if ',' in value:
+                    messagebox.showerror("Ошибка", "Используйте точку вместо запятой")
+                    return
+                try:
+                    prob = float(value)
+                except ValueError:
+                    messagebox.showerror("Ошибка", f"Значение '{value}' не является числом")
+                    return
+
+                if prob <= 0 or prob > 1:
+                    messagebox.showerror("Ошибка", "Вероятность должна быть в диапазоне (0, 1]")
+                    return
+                probabilities.append(prob)
+
+            total_prob = sum(probabilities)
+            if abs(total_prob - 1) > 0.0001:
+                messagebox.showerror("Ошибка",
+                                     f"Сумма вероятностей должна быть равна 1, текущая сумма: {total_prob:.4f}")
+                return
+
+            self.result_text.delete(1.0, tk.END)
+            original_probs = probabilities.copy()
+            probabilities.sort(reverse=True)
+
+            self.result_text.insert(tk.END, "Шаг 1: Исходные вероятности (по убыванию):\n")
+            for i, prob in enumerate(probabilities):
+                self.result_text.insert(tk.END, f"z{i + 1}: {prob:.4f}\n")
+            self.result_text.insert(tk.END, "\nПостроение дерева Хаффмана:\n")
+
+            all_states = []
+            merged_pairs = []
+            current_probs = probabilities.copy()
+            step = 1
+
+            while len(current_probs) > 1:
+                all_states.append(current_probs.copy())
+                self.result_text.insert(tk.END, f"\nШаг {step + 1}:\n")
+                self.result_text.insert(tk.END,
+                                        f"1. Текущие вероятности: {', '.join([f'{p:.4f}' for p in current_probs])}\n")
+
+                min1, min2 = current_probs[-2:]
+                merged_sum = min1 + min2
+                merged_pairs.append((min1, min2, merged_sum))
+
+                self.result_text.insert(tk.END,
+                                        f"2. Объединяем вероятности: {min1:.4f} + {min2:.4f}\n"
+                                        f"3. Получаем вероятность: {merged_sum:.4f}\n")
+
+                new_probs = current_probs[:-2] + [merged_sum]
+                new_probs.sort(reverse=True)
+
+                self.result_text.insert(tk.END,
+                                        f"4. Сортируем вероятности\n"
+                                        f"5. Новый список: {', '.join([f'{p:.4f}' for p in new_probs])}\n"
+                                        f"\n")
+
+                current_probs = new_probs
+                step += 1
+
+            all_states.append(current_probs.copy())
+            self.draw_tree(original_probs, all_states, merged_pairs)
+
+        except Exception as e:
+            messagebox.showerror("Ошибка", f"Произошла ошибка: {str(e)}")
+
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = HuffmanCode(root)
+    root.mainloop()
