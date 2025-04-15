@@ -6,24 +6,20 @@ class TreeWindow:
     def __init__(self, parent):
         self.window = tk.Toplevel(parent)
         self.window.title("Дерево Хаффмана")
-        self.window.state('zoomed')  # Разворачиваем окно на весь экран
+        self.window.state('zoomed')
 
-        # Создаем фрейм для канваса и скроллбаров
         self.tree_frame = ttk.Frame(self.window)
         self.tree_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
-        # Создаем канвас со скроллбарами
         self.tree_canvas = tk.Canvas(self.tree_frame, bg='white')
         v_scrollbar = ttk.Scrollbar(self.tree_frame, orient="vertical",
                                   command=self.tree_canvas.yview)
         h_scrollbar = ttk.Scrollbar(self.tree_frame, orient="horizontal",
                                   command=self.tree_canvas.xview)
 
-        # Конфигурируем скроллбары
         self.tree_canvas.configure(yscrollcommand=v_scrollbar.set,
                                  xscrollcommand=h_scrollbar.set)
 
-        # Размещаем элементы
         h_scrollbar.pack(side=tk.BOTTOM, fill=tk.X)
         v_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.tree_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -36,26 +32,21 @@ class HuffmanCode:
         self.root.state('zoomed')
         self.tree_window = None
 
-        # Стили
         style = ttk.Style()
         style.configure('Large.TLabel', font=('Arial', 12))
         style.configure('Large.TButton', font=('Arial', 12))
         style.configure('Large.TEntry', font=('Arial', 12))
 
-        # Создаем основной контейнер
         main_container = ttk.Frame(root)
         main_container.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
-        # Левая панель для ввода данных
         left_panel = ttk.Frame(main_container, width=300)
         left_panel.pack(side=tk.LEFT, fill=tk.Y, padx=10)
         left_panel.pack_propagate(False)
 
-        # Правая панель для результатов
         right_panel = ttk.Frame(main_container)
         right_panel.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=2)
 
-        # Ввод количества букв
         input_frame = ttk.Frame(left_panel)
         input_frame.pack(fill=tk.X, pady=10, anchor='w')
 
@@ -63,7 +54,6 @@ class HuffmanCode:
         self.letters_count_entry = ttk.Entry(input_frame, font=('Arial', 12), width=8)
         self.letters_count_entry.pack(pady=5, anchor='w')
 
-        # Кнопки
         ttk.Button(input_frame, text="Создать таблицу",
                   command=self.create_probability_table,
                   style='Large.TButton',
@@ -74,18 +64,14 @@ class HuffmanCode:
                   style='Large.TButton',
                   width=self.button_width).pack(pady=5, anchor='w')
 
-        # Фрейм для таблицы вероятностей
         self.prob_frame = ttk.Frame(left_panel)
         self.prob_frame.pack(fill=tk.BOTH, expand=True)
 
-        # Текстовое поле с прокруткой для вывода результатов
         ttk.Label(right_panel, text="Результаты расчета:", style='Large.TLabel').pack(pady=5)
 
-        # Создаем фрейм для текста с прокруткой
         calc_frame = ttk.Frame(right_panel)
         calc_frame.pack(fill=tk.BOTH, expand=True, pady=5)
 
-        # Добавляем скроллбары
         calc_v_scroll = ttk.Scrollbar(calc_frame)
         calc_h_scroll = ttk.Scrollbar(calc_frame, orient='horizontal')
         self.result_text = tk.Text(calc_frame, font=('Arial', 12),
@@ -107,14 +93,11 @@ class HuffmanCode:
             self.tree_window.window.lift()
 
     def clear_all(self):
-        # Очищаем предыдущую таблицу
         for widget in self.prob_frame.winfo_children():
             widget.destroy()
 
-        # Очищаем текстовое поле результатов
         self.result_text.delete(1.0, tk.END)
 
-        # Очищаем дерево, если окно существует
         if self.tree_window and self.tree_window.window.winfo_exists():
             self.tree_window.tree_canvas.delete("all")
 
@@ -125,11 +108,9 @@ class HuffmanCode:
                 messagebox.showerror("Ошибка", "Количество символов должно быть не менее 2")
                 return
 
-            # Очищаем предыдущую таблицу
             for widget in self.prob_frame.winfo_children():
                 widget.destroy()
 
-            # Создаем канвас с прокруткой если символов больше 16
             if n > 16:
                 canvas = tk.Canvas(self.prob_frame)
                 scrollbar = ttk.Scrollbar(self.prob_frame, orient="vertical", command=canvas.yview)
@@ -143,12 +124,10 @@ class HuffmanCode:
                 canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
                 canvas.configure(yscrollcommand=scrollbar.set)
 
-                # Создаем заголовки таблицы
                 ttk.Label(scrollable_frame, text="Символ", style='Large.TLabel').grid(row=0, column=0, padx=5, pady=5)
                 ttk.Label(scrollable_frame, text="Вероятность", style='Large.TLabel').grid(row=0, column=1, padx=5,
                                                                                            pady=5)
 
-                # Создаем поля ввода для вероятностей
                 self.prob_entries = []
                 for i in range(n):
                     ttk.Label(scrollable_frame, text=f"z{i + 1}", style='Large.TLabel').grid(row=i + 1, column=0,
@@ -163,7 +142,6 @@ class HuffmanCode:
 
                     self.prob_entries.append(entry)
 
-                # Кнопка для расчета
                 ttk.Button(scrollable_frame, text="Рассчитать",
                            command=self.calculate_huffman,
                            style='Large.TButton',
@@ -173,7 +151,6 @@ class HuffmanCode:
                 scrollbar.pack(side="right", fill="y")
 
             else:
-                # Стандартное отображение без скролла
                 ttk.Label(self.prob_frame, text="Символ", style='Large.TLabel').grid(row=0, column=0, padx=5, pady=5)
                 ttk.Label(self.prob_frame, text="Вероятность", style='Large.TLabel').grid(row=0, column=1, padx=5,
                                                                                           pady=5)
@@ -210,18 +187,15 @@ class HuffmanCode:
         canvas = self.tree_window.tree_canvas
         canvas.delete("all")
 
-        # Размеры для дерева
         node_radius = 25
         horizontal_spacing = 200
         vertical_spacing = 100
 
-        # Вычисляем необходимые размеры канваса
         total_width = max(2500, len(original_probs) * horizontal_spacing * 2)
         total_height = max(1200, 8 * vertical_spacing)
 
         canvas.configure(scrollregion=(0, 0, total_width, total_height))
 
-        # Начальные координаты корня
         root_x = total_width / 2
         root_y = vertical_spacing * 1.5
 
@@ -301,12 +275,10 @@ class HuffmanCode:
                 get_codes(node['right'], code + "0", codes)
             return codes
 
-        # В методе draw_tree после получения кодов:
         codes = get_codes(tree)
 
-        # Сопоставляем коды с исходными вероятностями в порядке их ввода
         prob_codes = []
-        used_codes = set()  # Для отслеживания использованных кодов
+        used_codes = set()
         for i, prob in enumerate(original_probs):
             for value, code in codes:
                 if abs(value - prob) < 0.0001 and code not in used_codes:
@@ -314,7 +286,6 @@ class HuffmanCode:
                     used_codes.add(code)
                     break
 
-        # Выводим коды в порядке исходных символов
         for i, prob, code in sorted(prob_codes):
             self.result_text.insert(tk.END, f"z{i} ({prob:.2f}): {code}\n")
 
